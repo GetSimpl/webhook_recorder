@@ -23,7 +23,7 @@ module WebhookRecorder
       server.start
       server.wait
       if server.http_expose
-        Ngrok::Wrapper.start(port: port, authtoken: ENV['NGROK_AUTH_TOKEN'])
+        Ngrok::Wrapper.start(port: port, authtoken: ENV['NGROK_AUTH_TOKEN'], config: ENV['NGROK_CONFIG_FILE'])
         server.http_url = Ngrok::Wrapper.ngrok_url
         server.https_url = Ngrok::Wrapper.ngrok_url_https
       end
