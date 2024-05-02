@@ -1,7 +1,7 @@
 require 'webhook_recorder/version'
 require 'rack'
 require 'webrick'
-require 'ngrok/tunnel'
+require 'ngrok/wrapper'
 require 'active_support/core_ext/hash'
 
 module WebhookRecorder
@@ -23,15 +23,15 @@ module WebhookRecorder
       server.start
       server.wait
       if server.http_expose
-        Ngrok::Tunnel.start(port: port, authtoken: ENV['NGROK_AUTH_TOKEN'])
-        server.http_url = Ngrok::Tunnel.ngrok_url
-        server.https_url = Ngrok::Tunnel.ngrok_url_https
+        Ngrok::Wrapper.start(port: port, authtoken: ENV['NGROK_AUTH_TOKEN'], config: ENV['NGROK_CONFIG_FILE'])
+        server.http_url = Ngrok::Wrapper.ngrok_url
+        server.https_url = Ngrok::Wrapper.ngrok_url_https
       end
       yield server
     ensure
       server.recorded_reqs.clear
       server.stop
-      Ngrok::Tunnel.stop
+      Ngrok::Wrapper.stop
     end
 
     def start
