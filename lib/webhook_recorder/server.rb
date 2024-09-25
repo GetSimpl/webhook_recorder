@@ -18,7 +18,7 @@ module WebhookRecorder
       @started = false
     end
     
-    def self.open(port, response_config, http_expose = true, log_verbose = false, ngrok_token = nil)
+    def self.open(port:, response_config:, http_expose: true, log_verbose: false, ngrok_token: nil)
       server = new(port, response_config, http_expose, log_verbose)
       server.start
       server.wait
