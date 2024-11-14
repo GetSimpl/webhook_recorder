@@ -12,7 +12,7 @@ RSpec.describe WebhookRecorder do
   context 'open' do
     it 'should respond as defined as response_config' do
       response_config = { '/hello' => { code: 200, body: 'Expected result' } }
-      WebhookRecorder::Server.open(@port, response_config) do |server|
+      WebhookRecorder::Server.open(port: @port, response_config: response_config) do |server|
         expect(server.http_url).not_to be_nil
         expect(server.https_url).not_to be_nil
 
@@ -31,7 +31,7 @@ RSpec.describe WebhookRecorder do
 
     it 'should run in localhost if ngrok option is toggled off' do
       response_config = { '/hello' => { code: 200, body: 'Expected result' } }
-      WebhookRecorder::Server.open(@port, response_config, http_expose = false) do |server|
+      WebhookRecorder::Server.open(port: @port, response_config: response_config, http_expose: false) do |server|
         expect(server.http_url).to be_nil
         expect(server.https_url).to be_nil
 
@@ -49,7 +49,7 @@ RSpec.describe WebhookRecorder do
     end
 
     it 'should respond with 404 if not configured' do
-      WebhookRecorder::Server.open(@port, {}) do |server|
+      WebhookRecorder::Server.open(port: @port, response_config: {}) do |server|
         expect(server.http_url).not_to be_nil
         expect(server.https_url).not_to be_nil
 

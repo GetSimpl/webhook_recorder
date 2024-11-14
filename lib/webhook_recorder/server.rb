@@ -17,13 +17,13 @@ module WebhookRecorder
       self.log_verbose = log_verbose
       @started = false
     end
-
-    def self.open(port, response_config, http_expose = true, log_verbose=false)
+    
+    def self.open(port, response_config, http_expose: true, log_verbose: false, ngrok_token: nil)
       server = new(port, response_config, http_expose, log_verbose)
       server.start
       server.wait
       if server.http_expose
-        Ngrok::Wrapper.start(port: port, authtoken: ENV['NGROK_AUTH_TOKEN'], config: ENV['NGROK_CONFIG_FILE'])
+        Ngrok::Wrapper.start(port: port, authtoken: ngrok_token || ENV['NGROK_AUTH_TOKEN'], config: ENV['NGROK_CONFIG_FILE'])
         server.http_url = Ngrok::Wrapper.ngrok_url
         server.https_url = Ngrok::Wrapper.ngrok_url_https
       end
