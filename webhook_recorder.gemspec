@@ -26,7 +26,7 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency 'activesupport', '~> 8.0'
   spec.add_runtime_dependency 'puma', '~> 6.5'
   spec.add_runtime_dependency 'ngrok-wrapper', '~> 0.3'
-  spec.add_runtime_dependency 'rack', '~> 3.1'
+  spec.add_runtime_dependency 'rack', '~> 2.2.17'
 
   spec.add_development_dependency 'bundler', '~> 2.5'
   spec.add_development_dependency 'rake', '~> 13.0'
