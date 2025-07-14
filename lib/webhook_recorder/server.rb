@@ -34,7 +34,8 @@ module WebhookRecorder
         end
         
         unless @@shared_server
-          @@shared_server = new(port || find_available_port, {}, http_expose, log_verbose)
+          # Always start shared server with http_expose=false, we'll enable ngrok per request
+          @@shared_server = new(port || find_available_port, {}, false, log_verbose)
           @@shared_server.start
           @@shared_server.wait
           
@@ -48,9 +49,10 @@ module WebhookRecorder
         # Handle ngrok if needed and not already enabled
         if http_expose && !@@shared_server.http_expose
           @@shared_server.http_expose = true
-          Ngrok::Wrapper.start(port: @@shared_server.port, authtoken: ngrok_token || "2ziwSjEiokbqkXYy3V91BRaSPhX_6o1ViSr39f4QdQjxrDUhE" || ENV['NGROK_AUTH_TOKEN'], config: ENV['NGROK_CONFIG_FILE'])
+          Ngrok::Wrapper.start(port: @@shared_server.port, authtoken: ngrok_token || ENV['NGROK_AUTH_TOKEN'], config: ENV['NGROK_CONFIG_FILE'])
           @@shared_server.http_url = Ngrok::Wrapper.ngrok_url
           @@shared_server.https_url = Ngrok::Wrapper.ngrok_url_https
+          @@shared_server.http_expose = true
         end
         
         yield @@shared_server
