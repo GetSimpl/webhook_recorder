@@ -2,7 +2,7 @@ require 'spec_helper'
 
 RSpec.describe WebhookRecorder do
   before do
-    @port = 4545
+    @port = rand(49152..65535)  # Use random available port range
   end
 
   it 'has a version number' do
@@ -15,15 +15,15 @@ RSpec.describe WebhookRecorder do
       WebhookRecorder::Server.open(port: @port, response_config: response_config) do |server|
         expect(server.https_url).not_to be_nil
 
-        res = RestClient.post "#{server.https_url}/hello?q=1", {some: 1, other: 2}.to_json
+        res = HTTPX.post("#{server.https_url}/hello?q=1", json: {some: 1, other: 2})
 
-        expect(res.code).to eq(200)
-        expect(res.body).to eq('Expected result')
+        expect(res.status).to eq(200)
+        expect(res.body.to_s).to eq('Expected result')
         expect(server.recorded_reqs.size).to eq(1)
         req1 = server.recorded_reqs.first
         expect(req1[:request_path]).to eq('/hello')
         expect(req1[:query_string]).to include('q=1')
-        expect(req1[:http_user_agent]).to include('rest-client')
+        expect(req1[:http_user_agent]).to include('httpx')
         expect(JSON.parse(req1[:request_body]).symbolize_keys).to eq({some: 1, other: 2})
       end
     end
@@ -34,15 +34,15 @@ RSpec.describe WebhookRecorder do
         expect(server.http_url).to be_nil
         expect(server.https_url).to be_nil
 
-        res = RestClient.post "http://localhost:#{@port}/hello?q=1", {some: 1, other: 2}.to_json
+        res = HTTPX.post("http://localhost:#{@port}/hello?q=1", json: {some: 1, other: 2})
 
-        expect(res.code).to eq(200)
-        expect(res.body).to eq('Expected result')
+        expect(res.status).to eq(200)
+        expect(res.body.to_s).to eq('Expected result')
         expect(server.recorded_reqs.size).to eq(1)
         req1 = server.recorded_reqs.first
         expect(req1[:request_path]).to eq('/hello')
         expect(req1[:query_string]).to include('q=1')
-        expect(req1[:http_user_agent]).to include('rest-client')
+        expect(req1[:http_user_agent]).to include('httpx')
         expect(JSON.parse(req1[:request_body]).symbolize_keys).to eq({some: 1, other: 2})
       end
     end
@@ -51,9 +51,8 @@ RSpec.describe WebhookRecorder do
       WebhookRecorder::Server.open(port: @port, response_config: {}) do |server|
         expect(server.https_url).not_to be_nil
 
-        expect do
-          res = RestClient.get "#{server.https_url}/hello"
-        end.to raise_error(RestClient::NotFound)
+        res = HTTPX.get("#{server.https_url}/hello")
+        expect(res.status).to eq(404)
       end
     end
   end

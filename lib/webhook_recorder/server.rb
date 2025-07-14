@@ -1,6 +1,6 @@
 require 'webhook_recorder/version'
 require 'rack'
-require 'webrick'
+require 'rack/handler/puma'
 require 'ngrok/wrapper'
 require 'active_support/core_ext/hash'
 require 'timeout'
@@ -39,74 +39,54 @@ module WebhookRecorder
     end
 
     def start
-      Thread.new do
-        @webrick_server = WEBrick::HTTPServer.new(
+      @app = proc { |env| call(env) }
+      
+      # Use Rack with Puma handler for better performance
+      # This needs to run in a thread because Rack::Handler::Puma.run is blocking
+      @server_thread = Thread.new do
+        Rack::Handler::Puma.run(
+          @app,
+          Host: 'localhost',
           Port: @port,
-          Logger: WEBrick::Log.new(self.log_verbose ? $stdout : "/dev/null"),
-          AccessLog: [],
-          DoNotReverseLookup: true
+          Threads: '1:4',
+          Quiet: !self.log_verbose
         )
-        
-        @webrick_server.mount_proc '/' do |req, res|
-          rack_env = {}
-          
-          # Build basic Rack env
-          rack_env['REQUEST_METHOD'] = req.request_method
-          rack_env['PATH_INFO'] = req.path
-          rack_env['REQUEST_PATH'] = req.path
-          rack_env['QUERY_STRING'] = req.query_string || ''
-          rack_env['SERVER_NAME'] = req.host
-          rack_env['SERVER_PORT'] = @port.to_s
-          rack_env['HTTP_USER_AGENT'] = req['User-Agent'] || ''
-          rack_env['CONTENT_TYPE'] = req['Content-Type'] || ''
-          rack_env['CONTENT_LENGTH'] = req['Content-Length'] || ''
-          rack_env['REQUEST_URI'] = req.request_uri.to_s
-          rack_env['HTTP_HOST'] = req['Host'] || ''
-          rack_env['SCRIPT_NAME'] = ''
-          rack_env['REMOTE_ADDR'] = req.peeraddr[3] rescue '127.0.0.1'
-          rack_env['rack.version'] = [1, 3]
-          rack_env['rack.url_scheme'] = 'http'
-          rack_env['rack.multithread'] = true
-          rack_env['rack.multiprocess'] = false
-          rack_env['rack.run_once'] = false
-          rack_env['rack.errors'] = $stderr
-          
-          # Add headers
-          req.each do |key, value|
-            key = key.upcase.gsub('-', '_')
-            key = "HTTP_#{key}" unless %w[CONTENT_TYPE CONTENT_LENGTH].include?(key)
-            rack_env[key] = value
-          end
-          
-          # Handle request body
-          rack_env['rack.input'] = StringIO.new(req.body || '')
-          rack_env['request_body'] = req.body || ''
-          
-          # Call the rack app
-          status, headers, body = call(rack_env)
-          
-          res.status = status
-          headers.each { |k, v| res[k] = v }
-          res.body = body.is_a?(Array) ? body.join : body.to_s
-        end
-        
-        @server = @webrick_server
-        @started = true
-        @webrick_server.start
       rescue => e
         puts "Server error: #{e.message}"
         puts e.backtrace
       end
+      
+      @started = true
     end
 
     def wait
-      Timeout.timeout(10) { sleep 0.1 until @started }
+      Timeout.timeout(10) do 
+        sleep 0.1 until @started 
+        sleep 0.5  # Give server a moment to fully start
+      end
     end
 
     def call(env)
       path = env['PATH_INFO']
       request = Rack::Request.new(env)
-      recorded_reqs << env.merge(request_body: request.body.string).deep_transform_keys(&:downcase).with_indifferent_access
+      
+      # Read the body properly for Puma
+      request_body = request.body.read
+      request.body.rewind if request.body.respond_to?(:rewind)
+      
+      # Store request details for recording
+      request_data = {
+        request_path: path,
+        query_string: env['QUERY_STRING'],
+        http_user_agent: env['HTTP_USER_AGENT'],
+        request_body: request_body,
+        request_method: env['REQUEST_METHOD'],
+        content_type: env['CONTENT_TYPE'],
+        remote_addr: env['REMOTE_ADDR']
+      }.merge(env.select { |k, v| k.start_with?('HTTP_') })
+      
+      recorded_reqs << request_data.with_indifferent_access
+      
       if response_config[path]
         res = response_config[path]
         [res[:code], res[:headers] || {}, [res[:body] || "Missing body in response_config"]]
@@ -117,7 +97,11 @@ module WebhookRecorder
     end
 
     def stop
-      @server.shutdown if @server
+      if @server_thread
+        @server_thread.kill
+        @server_thread = nil
+      end
+      @started = false
     end
   end
 end
