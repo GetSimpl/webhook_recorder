@@ -3,6 +3,8 @@ require 'rack'
 require 'webrick'
 require 'ngrok/wrapper'
 require 'active_support/core_ext/hash'
+require 'timeout'
+require 'stringio'
 
 module WebhookRecorder
   class Server
@@ -18,7 +20,7 @@ module WebhookRecorder
       @started = false
     end
     
-    def self.open(port, response_config, http_expose: true, log_verbose: false, ngrok_token: nil)
+    def self.open(port: nil, response_config: nil, http_expose: true, log_verbose: false, ngrok_token: nil)
       server = new(port, response_config, http_expose, log_verbose)
       server.start
       server.wait
@@ -29,21 +31,71 @@ module WebhookRecorder
       end
       yield server
     ensure
-      server.recorded_reqs.clear
-      server.stop
-      Ngrok::Wrapper.stop
+      server.recorded_reqs.clear if server
+      server.stop if server
+      if server&.http_expose
+        Ngrok::Wrapper.stop
+      end
     end
 
     def start
       Thread.new do
-        options = {
+        @webrick_server = WEBrick::HTTPServer.new(
           Port: @port,
-          Logger: WEBrick::Log.new(self.log_verbose ? STDOUT : "/dev/null"),
+          Logger: WEBrick::Log.new(self.log_verbose ? $stdout : "/dev/null"),
           AccessLog: [],
-          DoNotReverseLookup: true,
-          StartCallback: -> { @started = true }
-        }
-        Rack::Handler::WEBrick.run(self, options) { |s| @server = s }
+          DoNotReverseLookup: true
+        )
+        
+        @webrick_server.mount_proc '/' do |req, res|
+          rack_env = {}
+          
+          # Build basic Rack env
+          rack_env['REQUEST_METHOD'] = req.request_method
+          rack_env['PATH_INFO'] = req.path
+          rack_env['REQUEST_PATH'] = req.path
+          rack_env['QUERY_STRING'] = req.query_string || ''
+          rack_env['SERVER_NAME'] = req.host
+          rack_env['SERVER_PORT'] = @port.to_s
+          rack_env['HTTP_USER_AGENT'] = req['User-Agent'] || ''
+          rack_env['CONTENT_TYPE'] = req['Content-Type'] || ''
+          rack_env['CONTENT_LENGTH'] = req['Content-Length'] || ''
+          rack_env['REQUEST_URI'] = req.request_uri.to_s
+          rack_env['HTTP_HOST'] = req['Host'] || ''
+          rack_env['SCRIPT_NAME'] = ''
+          rack_env['REMOTE_ADDR'] = req.peeraddr[3] rescue '127.0.0.1'
+          rack_env['rack.version'] = [1, 3]
+          rack_env['rack.url_scheme'] = 'http'
+          rack_env['rack.multithread'] = true
+          rack_env['rack.multiprocess'] = false
+          rack_env['rack.run_once'] = false
+          rack_env['rack.errors'] = $stderr
+          
+          # Add headers
+          req.each do |key, value|
+            key = key.upcase.gsub('-', '_')
+            key = "HTTP_#{key}" unless %w[CONTENT_TYPE CONTENT_LENGTH].include?(key)
+            rack_env[key] = value
+          end
+          
+          # Handle request body
+          rack_env['rack.input'] = StringIO.new(req.body || '')
+          rack_env['request_body'] = req.body || ''
+          
+          # Call the rack app
+          status, headers, body = call(rack_env)
+          
+          res.status = status
+          headers.each { |k, v| res[k] = v }
+          res.body = body.is_a?(Array) ? body.join : body.to_s
+        end
+        
+        @server = @webrick_server
+        @started = true
+        @webrick_server.start
+      rescue => e
+        puts "Server error: #{e.message}"
+        puts e.backtrace
       end
     end
 

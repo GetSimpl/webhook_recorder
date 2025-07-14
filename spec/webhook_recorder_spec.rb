@@ -13,10 +13,9 @@ RSpec.describe WebhookRecorder do
     it 'should respond as defined as response_config' do
       response_config = { '/hello' => { code: 200, body: 'Expected result' } }
       WebhookRecorder::Server.open(port: @port, response_config: response_config) do |server|
-        expect(server.http_url).not_to be_nil
         expect(server.https_url).not_to be_nil
 
-        res = RestClient.post "#{server.http_url}/hello?q=1", {some: 1, other: 2}.to_json
+        res = RestClient.post "#{server.https_url}/hello?q=1", {some: 1, other: 2}.to_json
 
         expect(res.code).to eq(200)
         expect(res.body).to eq('Expected result')
@@ -50,7 +49,6 @@ RSpec.describe WebhookRecorder do
 
     it 'should respond with 404 if not configured' do
       WebhookRecorder::Server.open(port: @port, response_config: {}) do |server|
-        expect(server.http_url).not_to be_nil
         expect(server.https_url).not_to be_nil
 
         expect do
