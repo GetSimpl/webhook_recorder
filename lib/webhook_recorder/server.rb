@@ -11,31 +11,102 @@ module WebhookRecorder
     attr_accessor :recorded_reqs, :http_url, :https_url, :response_config,
                   :port, :http_expose, :log_verbose
 
-    def initialize(port, response_config, http_expose = true, log_verbose = false)
+    def initialize(port, response_config = {}, http_expose = true, log_verbose = false)
       self.port = port
       self.response_config = response_config
       self.recorded_reqs = []
       self.http_expose = http_expose
       self.log_verbose = log_verbose
       @started = false
+      @config_mutex = Mutex.new
     end
     
     def self.open(port: nil, response_config: nil, http_expose: true, log_verbose: false, ngrok_token: nil)
+      # Check if there's already a shared server running
+      if @@shared_server
+        # Reuse existing server, just update config
+        @@shared_server.update_response_config(response_config || {})
+        
+        # Handle ngrok for existing server if needed
+        if http_expose && !@@shared_server.http_expose
+          # Only start ngrok if it wasn't already enabled
+          @@shared_server.http_expose = true
+          Ngrok::Wrapper.start(port: @@shared_server.port, authtoken: ngrok_token || "2ziwSjEiokbqkXYy3V91BRaSPhX_6o1ViSr39f4QdQjxrDUhE" || ENV['NGROK_AUTH_TOKEN'], config: ENV['NGROK_CONFIG_FILE'])
+          @@shared_server.http_url = Ngrok::Wrapper.ngrok_url
+          @@shared_server.https_url = Ngrok::Wrapper.ngrok_url_https
+        end
+        
+        yield @@shared_server
+        return
+      end
+      
+      # No existing server, create a new one
       server = new(port, response_config, http_expose, log_verbose)
       server.start
       server.wait
       if server.http_expose
-        Ngrok::Wrapper.start(port: port, authtoken: ngrok_token || ENV['NGROK_AUTH_TOKEN'], config: ENV['NGROK_CONFIG_FILE'])
+        Ngrok::Wrapper.start(port: port, authtoken: ngrok_token || "2ziwSjEiokbqkXYy3V91BRaSPhX_6o1ViSr39f4QdQjxrDUhE" || ENV['NGROK_AUTH_TOKEN'], config: ENV['NGROK_CONFIG_FILE'])
         server.http_url = Ngrok::Wrapper.ngrok_url
         server.https_url = Ngrok::Wrapper.ngrok_url_https
       end
       yield server
     ensure
-      server.recorded_reqs.clear if server
-      server.stop if server
-      if server&.http_expose
-        Ngrok::Wrapper.stop
+      # Only clean up if it's not a shared server
+      if server && server != @@shared_server
+        server.recorded_reqs.clear
+        server.stop
+        if server.http_expose
+          Ngrok::Wrapper.stop
+        end
       end
+    end
+
+    # Class-level shared server for testing
+    @@shared_server = nil
+    @@shared_server_mutex = Mutex.new
+
+    def self.shared_server(port: nil, http_expose: false, log_verbose: false)
+      @@shared_server_mutex.synchronize do
+        unless @@shared_server
+          @@shared_server = new(port || find_available_port, {}, http_expose, log_verbose)
+          @@shared_server.start
+          @@shared_server.wait
+          
+          # Setup cleanup at program exit
+          at_exit { stop_shared_server }
+        end
+        @@shared_server
+      end
+    end
+
+    def self.stop_shared_server
+      @@shared_server_mutex.synchronize do
+        if @@shared_server
+          @@shared_server.stop
+          @@shared_server = nil
+        end
+      end
+    end
+
+    def self.find_available_port
+      require 'socket'
+      server = TCPServer.new('localhost', 0)
+      port = server.addr[1]
+      server.close
+      port
+    end
+
+    # Add method to update response config dynamically
+    def update_response_config(new_config)
+      @config_mutex.synchronize do
+        self.response_config = new_config
+        clear_recorded_requests
+      end
+    end
+
+    # Add method to clear recorded requests
+    def clear_recorded_requests
+      self.recorded_reqs.clear
     end
 
     def start
@@ -74,7 +145,7 @@ module WebhookRecorder
       request_body = request.body.read
       request.body.rewind if request.body.respond_to?(:rewind)
       
-      # Store request details for recording
+      # Store request details for recording (thread-safe)
       request_data = {
         request_path: path,
         query_string: env['QUERY_STRING'],
@@ -85,10 +156,15 @@ module WebhookRecorder
         remote_addr: env['REMOTE_ADDR']
       }.merge(env.select { |k, v| k.start_with?('HTTP_') })
       
-      recorded_reqs << request_data.with_indifferent_access
+      @config_mutex.synchronize do
+        recorded_reqs << request_data.with_indifferent_access
+      end
       
-      if response_config[path]
-        res = response_config[path]
+      # Get response config in thread-safe manner
+      current_response_config = @config_mutex.synchronize { response_config.dup }
+      
+      if current_response_config[path]
+        res = current_response_config[path]
         [res[:code], res[:headers] || {}, [res[:body] || "Missing body in response_config"]]
       else
         warn "WebhookRecorder::Server: Missing response_config for path #{path}"
@@ -99,9 +175,12 @@ module WebhookRecorder
     def stop
       if @server_thread
         @server_thread.kill
+        @server_thread.join(2) # Wait up to 2 seconds for clean shutdown
         @server_thread = nil
       end
       @started = false
+      # Give the port time to be released
+      sleep 0.1
     end
   end
 end

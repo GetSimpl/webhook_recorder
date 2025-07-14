@@ -2,7 +2,7 @@ require 'spec_helper'
 
 RSpec.describe WebhookRecorder do
   before do
-    @port = rand(49152..65535)  # Use random available port range
+    @port = 4501  # Use random port to avoid conflicts
   end
 
   it 'has a version number' do
