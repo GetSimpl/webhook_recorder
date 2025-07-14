@@ -127,7 +127,7 @@ module WebhookRecorder
       
       # Store request details for recording (thread-safe)
       request_data = {
-        request_path: path,
+        path_info: path,
         query_string: env['QUERY_STRING'],
         http_user_agent: env['HTTP_USER_AGENT'],
         request_body: request_body,
