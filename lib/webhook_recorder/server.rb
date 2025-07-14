@@ -21,52 +21,18 @@ module WebhookRecorder
       @config_mutex = Mutex.new
     end
     
-    def self.open(port: nil, response_config: nil, http_expose: true, log_verbose: false, ngrok_token: nil)
-      # Check if there's already a shared server running
-      if @@shared_server
-        # Reuse existing server, just update config
-        @@shared_server.update_response_config(response_config || {})
-        
-        # Handle ngrok for existing server if needed
-        if http_expose && !@@shared_server.http_expose
-          # Only start ngrok if it wasn't already enabled
-          @@shared_server.http_expose = true
-          Ngrok::Wrapper.start(port: @@shared_server.port, authtoken: ngrok_token || "2ziwSjEiokbqkXYy3V91BRaSPhX_6o1ViSr39f4QdQjxrDUhE" || ENV['NGROK_AUTH_TOKEN'], config: ENV['NGROK_CONFIG_FILE'])
-          @@shared_server.http_url = Ngrok::Wrapper.ngrok_url
-          @@shared_server.https_url = Ngrok::Wrapper.ngrok_url_https
-        end
-        
-        yield @@shared_server
-        return
-      end
-      
-      # No existing server, create a new one
-      server = new(port, response_config, http_expose, log_verbose)
-      server.start
-      server.wait
-      if server.http_expose
-        Ngrok::Wrapper.start(port: port, authtoken: ngrok_token || "2ziwSjEiokbqkXYy3V91BRaSPhX_6o1ViSr39f4QdQjxrDUhE" || ENV['NGROK_AUTH_TOKEN'], config: ENV['NGROK_CONFIG_FILE'])
-        server.http_url = Ngrok::Wrapper.ngrok_url
-        server.https_url = Ngrok::Wrapper.ngrok_url_https
-      end
-      yield server
-    ensure
-      # Only clean up if it's not a shared server
-      if server && server != @@shared_server
-        server.recorded_reqs.clear
-        server.stop
-        if server.http_expose
-          Ngrok::Wrapper.stop
-        end
-      end
-    end
-
-    # Class-level shared server for testing
+    # Class-level shared server - Server.open creates and reuses this by default
     @@shared_server = nil
     @@shared_server_mutex = Mutex.new
 
-    def self.shared_server(port: nil, http_expose: false, log_verbose: false)
+    def self.open(port: nil, response_config: nil, http_expose: true, log_verbose: false, ngrok_token: nil)
       @@shared_server_mutex.synchronize do
+        # If a specific port is requested and we have a server on a different port, stop the old one
+        if @@shared_server && port && @@shared_server.port != port
+          @@shared_server.stop
+          @@shared_server = nil
+        end
+        
         unless @@shared_server
           @@shared_server = new(port || find_available_port, {}, http_expose, log_verbose)
           @@shared_server.start
@@ -75,7 +41,19 @@ module WebhookRecorder
           # Setup cleanup at program exit
           at_exit { stop_shared_server }
         end
-        @@shared_server
+        
+        # Update the response config for this call
+        @@shared_server.update_response_config(response_config || {})
+        
+        # Handle ngrok if needed and not already enabled
+        if http_expose && !@@shared_server.http_expose
+          @@shared_server.http_expose = true
+          Ngrok::Wrapper.start(port: @@shared_server.port, authtoken: ngrok_token || "2ziwSjEiokbqkXYy3V91BRaSPhX_6o1ViSr39f4QdQjxrDUhE" || ENV['NGROK_AUTH_TOKEN'], config: ENV['NGROK_CONFIG_FILE'])
+          @@shared_server.http_url = Ngrok::Wrapper.ngrok_url
+          @@shared_server.https_url = Ngrok::Wrapper.ngrok_url_https
+        end
+        
+        yield @@shared_server
       end
     end
 

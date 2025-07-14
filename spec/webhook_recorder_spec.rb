@@ -2,7 +2,7 @@ require 'spec_helper'
 
 RSpec.describe WebhookRecorder do
   before do
-    @port = 4501  # Use random port to avoid conflicts
+    @port = 4501
   end
 
   it 'has a version number' do
@@ -12,10 +12,10 @@ RSpec.describe WebhookRecorder do
   context 'open' do
     it 'should respond as defined as response_config' do
       response_config = { '/hello' => { code: 200, body: 'Expected result' } }
-      WebhookRecorder::Server.open(port: @port, response_config: response_config) do |server|
-        expect(server.https_url).not_to be_nil
+      WebhookRecorder::Server.open(port: @port, response_config: response_config, http_expose: false) do |server|
+        local_url = "http://localhost:#{server.port}"
 
-        res = HTTPX.post("#{server.https_url}/hello?q=1", json: {some: 1, other: 2})
+        res = HTTPX.post("#{local_url}/hello?q=1", json: {some: 1, other: 2})
 
         expect(res.status).to eq(200)
         expect(res.body.to_s).to eq('Expected result')
@@ -48,10 +48,10 @@ RSpec.describe WebhookRecorder do
     end
 
     it 'should respond with 404 if not configured' do
-      WebhookRecorder::Server.open(port: @port, response_config: {}) do |server|
-        expect(server.https_url).not_to be_nil
+      WebhookRecorder::Server.open(port: @port, response_config: {}, http_expose: false) do |server|
+        local_url = "http://localhost:#{server.port}"
 
-        res = HTTPX.get("#{server.https_url}/hello")
+        res = HTTPX.get("#{local_url}/hello")
         expect(res.status).to eq(404)
       end
     end

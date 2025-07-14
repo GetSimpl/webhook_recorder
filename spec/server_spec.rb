@@ -7,9 +7,11 @@ RSpec.describe "Server.open with Auto-Reuse" do
   
   # This will start the shared server
   before(:all) do
-    # Start a shared server first
-    @initial_server = WebhookRecorder::Server.shared_server(http_expose: false)
-    puts "🚀 Initial server started on port: #{@initial_server.port}"
+    # Start a shared server first via Server.open
+    WebhookRecorder::Server.open(response_config: {}, http_expose: false) do |server|
+      @initial_server = server
+      puts "🚀 Initial server started on port: #{@initial_server.port}"
+    end
   end
 
   it "first call to Server.open creates/uses server" do
