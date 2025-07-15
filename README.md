@@ -45,7 +45,7 @@ it 'should respond as defined as response_config' do
     # For e.g. if it made call to /hello with query params as q=1 and JSON body as {some: 1, other: 2}, you can assert like below.
 
     req1 = server.recorded_reqs.first
-    expect(req1[:request_path]).to eq('/hello')
+    expect(req1[:path_info]).to eq('/hello')
     expect(req1[:query_string]).to include('q=1')
     expect(JSON.parse(req1[:request_body]).symbolize_keys).to eq({some: 1, other: 2})
   end

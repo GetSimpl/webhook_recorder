@@ -14,7 +14,7 @@ RSpec.describe "Server.open with Auto-Reuse" do
     end
   end
 
-  it "first call to Server.open creates/uses server" do
+  it "subsequent opens to webhook server with different response config updates the response" do
     response_config = { '/test1' => { code: 200, body: 'Test 1 response' } }
     
     WebhookRecorder::Server.open(response_config: response_config, http_expose: false) do |server|
@@ -28,9 +28,7 @@ RSpec.describe "Server.open with Auto-Reuse" do
       expect(response.body.to_s).to eq('Test 1 response')
       expect(server.recorded_reqs.size).to eq(1)
     end
-  end
 
-  it "second call to Server.open reuses same server with new config" do
     response_config = { '/test2' => { code: 201, body: 'Test 2 response' } }
     
     WebhookRecorder::Server.open(response_config: response_config, http_expose: false) do |server|
@@ -46,11 +44,9 @@ RSpec.describe "Server.open with Auto-Reuse" do
       
       # Previous requests should be cleared (due to update_response_config)
       expect(server.recorded_reqs.size).to eq(1)
-      expect(server.recorded_reqs.first[:request_path]).to eq('/test2')
+      expect(server.recorded_reqs.first[:path_info]).to eq('/test2')
     end
-  end
 
-  it "third call with different config again" do
     response_config = { 
       '/test3' => { code: 200, body: { success: true, id: 123 }.to_json },
       '/error' => { code: 422, body: { error: 'Validation failed' }.to_json }
@@ -87,7 +83,7 @@ RSpec.describe "Server.open with Auto-Reuse" do
       # Verify webhook was recorded
       expect(server.recorded_reqs.size).to eq(1)
       payment_req = server.recorded_reqs.first
-      expect(payment_req[:request_path]).to eq('/payment')
+      expect(payment_req[:path_info]).to eq('/payment')
       expect(JSON.parse(payment_req[:request_body])['amount']).to eq(100)
     end
   end

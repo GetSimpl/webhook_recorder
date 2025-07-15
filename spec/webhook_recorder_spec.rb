@@ -21,7 +21,7 @@ RSpec.describe WebhookRecorder do
         expect(res.body.to_s).to eq('Expected result')
         expect(server.recorded_reqs.size).to eq(1)
         req1 = server.recorded_reqs.first
-        expect(req1[:request_path]).to eq('/hello')
+        expect(req1[:path_info]).to eq('/hello')
         expect(req1[:query_string]).to include('q=1')
         expect(req1[:http_user_agent]).to include('httpx')
         expect(JSON.parse(req1[:request_body]).symbolize_keys).to eq({some: 1, other: 2})
@@ -40,7 +40,7 @@ RSpec.describe WebhookRecorder do
         expect(res.body.to_s).to eq('Expected result')
         expect(server.recorded_reqs.size).to eq(1)
         req1 = server.recorded_reqs.first
-        expect(req1[:request_path]).to eq('/hello')
+        expect(req1[:path_info]).to eq('/hello')
         expect(req1[:query_string]).to include('q=1')
         expect(req1[:http_user_agent]).to include('httpx')
         expect(JSON.parse(req1[:request_body]).symbolize_keys).to eq({some: 1, other: 2})
@@ -70,7 +70,7 @@ RSpec.describe WebhookRecorder do
         expect(res.body.to_s).to eq('Webhook received via ngrok')
         expect(server.recorded_reqs.size).to eq(1)
         req1 = server.recorded_reqs.first
-        expect(req1[:request_path]).to eq('/webhook')
+        expect(req1[:path_info]).to eq('/webhook')
         expect(req1[:http_user_agent]).to include('httpx')
         expect(JSON.parse(req1[:request_body]).symbolize_keys).to eq({ngrok: true, test: 'data'})
       end

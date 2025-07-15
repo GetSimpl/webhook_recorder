@@ -36,7 +36,7 @@ RSpec.describe "Server.open Always Shared (Default Behavior)" do
       
       # Previous requests cleared due to update_response_config
       expect(server.recorded_reqs.size).to eq(1)
-      expect(server.recorded_reqs.first[:request_path]).to eq('/test2')
+      expect(server.recorded_reqs.first[:path_info]).to eq('/test2')
     end
   end
 
@@ -85,7 +85,7 @@ RSpec.describe "Server.open Always Shared (Default Behavior)" do
       # Verify webhook was recorded
       expect(server.recorded_reqs.size).to eq(1)
       webhook_req = server.recorded_reqs.first
-      expect(webhook_req[:request_path]).to eq('/webhook/user')
+      expect(webhook_req[:path_info]).to eq('/webhook/user')
       expect(webhook_req[:request_method]).to eq('POST')
       
       request_body = JSON.parse(webhook_req[:request_body])
