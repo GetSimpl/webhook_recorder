@@ -1,6 +1,6 @@
 require "bundler/setup"
 require "webhook_recorder"
-require 'rest-client'
+require 'httpx'
 require 'json'
 
 RSpec.configure do |config|

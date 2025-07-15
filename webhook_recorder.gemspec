@@ -1,5 +1,5 @@
 # coding: utf-8
-lib = File.expand_path('../lib', __FILE__)
+lib = File.expand_path('lib', __dir__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 require 'webhook_recorder/version'
 
@@ -14,6 +14,8 @@ Gem::Specification.new do |spec|
   spec.homepage      = 'https://github.com/siliconsenthil/webhook_recorder'
   spec.license       = 'MIT'
 
+  spec.required_ruby_version = '>= 3.3.8'
+
   spec.files         = `git ls-files -z`.split("\x0").reject do |f|
     f.match(%r{^(test|spec|features)/})
   end
@@ -21,13 +23,13 @@ Gem::Specification.new do |spec|
   # spec.executables   = spec.files.grep(%r{^exe/}) { |f| File.basename(f) }
   spec.require_paths = ['lib']
 
-  spec.add_runtime_dependency 'activesupport', '~>5.0.2'
-  spec.add_runtime_dependency 'webrick', '~>1.3.1'
-  spec.add_runtime_dependency 'ngrok-wrapper'
-  spec.add_runtime_dependency 'rack', '~>2.0.1'
+  spec.add_runtime_dependency 'activesupport', '~> 8.0'
+  spec.add_runtime_dependency 'puma', '~> 6.5'
+  spec.add_runtime_dependency 'ngrok-wrapper', '~> 0.3'
+  spec.add_runtime_dependency 'rack', '~> 2.2.17'
 
-  spec.add_development_dependency 'bundler', '~> 1.14'
-  spec.add_development_dependency 'rake', '~> 10.0'
-  spec.add_development_dependency 'rspec', '~> 3.0'
-  spec.add_development_dependency 'rest-client', '~> 2.0.1'
+  spec.add_development_dependency 'bundler', '~> 2.5'
+  spec.add_development_dependency 'rake', '~> 13.0'
+  spec.add_development_dependency 'rspec', '~> 3.13'
+  spec.add_development_dependency 'httpx', '~> 1.4'
 end

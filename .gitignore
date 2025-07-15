@@ -1,3 +1,6 @@
+*.gem
+*.rbc
+/.config
 /.bundle/
 /.yardoc
 /Gemfile.lock
@@ -7,6 +10,34 @@
 /pkg/
 /spec/reports/
 /tmp/
+/test/tmp/
+/test/version_tmp/
+/InstalledFiles
 
 # rspec failure tracking
 .rspec_status
+
+# Used by dotenv library to load environment variables.
+# .env
+
+# Ignore Byebug command history file.
+.byebug_history
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Ruby version management
+.ruby-version
+.rvmrc
